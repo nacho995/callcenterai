@@ -113,8 +113,8 @@ app.UseHttpsRedirection();
 // Health check endpoint
 app.MapGet("/health", () => "OK");
 
-// Seed endpoint para poblar aeropuertos
-app.MapPost("/api/seed", async (AppDbContext db) =>
+// Seed endpoint para poblar aeropuertos (GET para acceder desde navegador)
+app.MapGet("/api/seed", async (AppDbContext db) =>
 {
     if (await db.Airports.AnyAsync())
     {
