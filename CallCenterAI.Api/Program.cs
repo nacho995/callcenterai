@@ -24,16 +24,21 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddScoped<CallAiService>();
-builder.Services.AddHttpClient<SpeechToTextService>();
+builder.Services.AddScoped<SpeechToTextService>();
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+// Render usa DATABASE_URL por defecto
+var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL") 
+    ?? builder.Configuration.GetConnectionString("DefaultConnection");
+
 if (string.IsNullOrEmpty(connectionString))
 {
+    Console.WriteLine("No database connection string found, using SQLite");
     builder.Services.AddDbContext<AppDbContext>(opt =>
         opt.UseSqlite("Data Source=callcenter.db"));
 }
 else
 {
+    Console.WriteLine($"Using PostgreSQL connection");
     builder.Services.AddDbContext<AppDbContext>(opt =>
         opt.UseNpgsql(connectionString));
 }

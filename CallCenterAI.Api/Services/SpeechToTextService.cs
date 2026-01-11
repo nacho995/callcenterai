@@ -1,39 +1,40 @@
 using System.Net.Http.Headers;
 using Microsoft.Extensions.Configuration;
+using OpenAI.Audio;
 
 namespace CallCenterAI.Api.Services;
 
 public class SpeechToTextService
 {
-    private readonly HttpClient _http;
-    private readonly string _baseUrl;
+    private readonly IConfiguration _config;
 
-    public SpeechToTextService(HttpClient http, IConfiguration config)
+    public SpeechToTextService(IConfiguration config)
     {
-        _http = http;
-        _baseUrl = config["SpeechService:BaseUrl"] ?? "http://localhost:8000";
+        _config = config;
     }
 
     public async Task<string> TranscribeAsync(string audioPath)
     {
-        using var content = new MultipartFormDataContent();
-        var bytes = await File.ReadAllBytesAsync(audioPath);
-        var fileContent = new ByteArrayContent(bytes);
-        fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("audio/wav");
+        var apiKey = _config["OpenAI:ApiKey"];
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            throw new InvalidOperationException("OpenAI API Key not configured");
+        }
 
-        content.Add(fileContent, "audio", Path.GetFileName(audioPath));
+        var client = new OpenAI.OpenAIClient(apiKey);
+        var audioClient = client.GetAudioClient("whisper-1");
 
-        var response = await _http.PostAsync(
-            $"{_baseUrl}/transcribe",
-            content
-        );
-        response.EnsureSuccessStatusCode();
+        using var audioFileStream = File.OpenRead(audioPath);
+        
+        var transcription = await audioClient.TranscribeAudioAsync(
+            audioFileStream,
+            Path.GetFileName(audioPath),
+            new AudioTranscriptionOptions
+            {
+                Language = "es",
+                ResponseFormat = AudioTranscriptionFormat.Text
+            });
 
-        var json = await response.Content.ReadAsStringAsync();
-        return System.Text.Json.JsonDocument
-            .Parse(json)
-            .RootElement
-            .GetProperty("text")
-            .GetString()!;
+        return transcription.Value.Text;
     }
 }
