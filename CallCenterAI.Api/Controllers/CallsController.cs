@@ -46,35 +46,69 @@ public class CallsController : ControllerBase
     {
         try
         {
-            Console.WriteLine($"Received audio request from employee: {request.EmployeeId}");
+            Console.WriteLine("=".PadRight(60, '='));
+            Console.WriteLine($"📞 NEW CALL REQUEST from employee: {request.EmployeeId}");
+            Console.WriteLine("=".PadRight(60, '='));
             
             if (audio == null || audio.Length == 0)
             {
-                Console.WriteLine("ERROR: No audio file received");
+                Console.WriteLine("❌ ERROR: No audio file received");
                 return BadRequest("Audio file is required");
             }
             
-            Console.WriteLine($"Audio file: {audio.FileName}, size: {audio.Length} bytes, type: {audio.ContentType}");
+            // Validar tamaño mínimo del audio (10KB)
+            const int MIN_AUDIO_SIZE = 10 * 1024; // 10 KB
+            if (audio.Length < MIN_AUDIO_SIZE)
+            {
+                Console.WriteLine($"❌ ERROR: Audio file too small ({audio.Length} bytes, minimum {MIN_AUDIO_SIZE} bytes)");
+                return BadRequest($"Audio file is too small. Please record at least 2-3 seconds of audio.");
+            }
+            
+            Console.WriteLine($"📎 Audio file: {audio.FileName}");
+            Console.WriteLine($"📊 Size: {audio.Length:N0} bytes ({(audio.Length / 1024.0):F1} KB)");
+            Console.WriteLine($"🎵 Type: {audio.ContentType}");
             
             // Obtener extensión del archivo original
             var extension = Path.GetExtension(audio.FileName);
             if (string.IsNullOrEmpty(extension))
             {
                 extension = ".webm"; // Por defecto
+                Console.WriteLine($"⚠️  No extension found, using default: {extension}");
             }
             
             var audioPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}{extension}");
-            Console.WriteLine($"Saving audio to: {audioPath}");
+            Console.WriteLine($"💾 Saving to temp: {audioPath}");
 
             using (var stream = System.IO.File.Create(audioPath))
+            {
                 await audio.CopyToAsync(stream);
+            }
+            
+            // Verificar que el archivo se guardó correctamente
+            var fileInfo = new FileInfo(audioPath);
+            if (!fileInfo.Exists || fileInfo.Length == 0)
+            {
+                Console.WriteLine($"❌ ERROR: Failed to save audio file");
+                return StatusCode(500, "Failed to save audio file");
+            }
+            Console.WriteLine($"✅ File saved successfully: {fileInfo.Length:N0} bytes");
 
             string transcript;
             try
             {
-                Console.WriteLine("Starting transcription...");
+                Console.WriteLine("");
+                Console.WriteLine("🎤 STEP 1: TRANSCRIPTION");
+                Console.WriteLine("-".PadRight(60, '-'));
                 transcript = await _speechService.TranscribeAsync(audioPath);
-                Console.WriteLine($"Transcription complete: {transcript.Substring(0, Math.Min(50, transcript.Length))}...");
+                
+                if (string.IsNullOrWhiteSpace(transcript))
+                {
+                    Console.WriteLine("❌ ERROR: Transcription is empty");
+                    return BadRequest("Could not transcribe audio. Please try recording again.");
+                }
+                
+                Console.WriteLine($"✅ Transcription length: {transcript.Length} characters");
+                Console.WriteLine($"📝 Transcribed text: {transcript}");
             }
             finally
             {
@@ -82,12 +116,22 @@ public class CallsController : ControllerBase
                 if (System.IO.File.Exists(audioPath))
                 {
                     System.IO.File.Delete(audioPath);
+                    Console.WriteLine($"🗑️  Temp file deleted: {audioPath}");
                 }
             }
 
-            Console.WriteLine("Starting AI analysis...");
+            Console.WriteLine("");
+            Console.WriteLine("🤖 STEP 2: AI ANALYSIS");
+            Console.WriteLine("-".PadRight(60, '-'));
             var analysis = await _callAiService.AnalyzeAsync(transcript);
-            Console.WriteLine($"Analysis complete - Airport: {analysis.AirportCode}, Category: {analysis.Category}, Summary: {analysis.Summary?.Substring(0, Math.Min(50, analysis.Summary?.Length ?? 0))}...");
+            
+            if (analysis == null)
+            {
+                Console.WriteLine("❌ ERROR: AI analysis failed");
+                return StatusCode(500, "AI analysis failed");
+            }
+            
+            Console.WriteLine($"✅ Analysis completed successfully");
 
             // Buscar el aeropuerto por código (si no existe, usar MAD por defecto)
             var airport = await _db.Airports.FirstOrDefaultAsync(a => a.Code == analysis.AirportCode);

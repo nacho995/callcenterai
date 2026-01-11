@@ -16,52 +16,45 @@ public class CallAiService
 
     public async Task<CallSummaryResponse> AnalyzeAsync(string transcript)
     {
-        var prompt = $@"Eres un asistente de IA que analiza llamadas de call center de aeropuertos.
+        Console.WriteLine($"📥 Analyzing transcript ({transcript.Length} chars)");
+        
+        var prompt = $@"Analiza esta llamada de call center y extrae información estructurada.
 
-TAREA: Analiza la transcripción y extrae:
+CATEGORÍAS DISPONIBLES (elige la más específica):
+• Parking - aparcamiento, estacionamiento, tarifas parking
+• Vuelos - horarios, salidas, llegadas, retrasos, información de vuelos
+• Facturación - check-in, facturar equipaje, mostrador
+• Equipaje - maletas, equipaje perdido, recogida equipaje
+• Seguridad - controles, prohibiciones, artículos prohibidos
+• Transporte - buses, taxis, metro, tren, cómo llegar al aeropuerto
+• Información General - servicios aeropuerto, tiendas, restaurantes, wifi
+• Reservas - hacer reservas, citas
+• Queja - problemas, reclamos, incidencias
+• Otros - cualquier otra consulta
 
-1. CATEGORÍA (elige UNA que mejor describa el tema principal):
-   - Parking (si pregunta por aparcamiento, parking, estacionamiento)
-   - Vuelos (si pregunta por horarios, salidas, llegadas, retrasos de vuelos)
-   - Facturación (si pregunta por check-in, documentación, equipaje facturado)
-   - Equipaje (si pregunta por maletas, equipaje perdido, recogida)
-   - Seguridad (si pregunta por controles, prohibiciones, normativas)
-   - Transporte (si pregunta por buses, taxis, metro, cómo llegar)
-   - Información General (si pregunta datos del aeropuerto, servicios, tiendas)
-   - Reservas (si quiere reservar algo, hacer cita)
-   - Queja (si reporta un problema, reclama algo)
-   - Otros (SOLO si no encaja en ninguna categoría anterior)
+AEROPUERTOS ESPAÑOLES (código IATA):
+REU=Reus, GRO=Girona, BCN=Barcelona, MAD=Madrid, AGP=Málaga, VLC=Valencia,
+SVQ=Sevilla, ALC=Alicante, BIO=Bilbao, PMI=Palma, IBZ=Ibiza, MAH=Menorca,
+LPA=Gran Canaria, TFS=Tenerife Sur, TFN=Tenerife Norte, ACE=Lanzarote
 
-2. AEROPUERTO (código IATA de 3 letras):
-   Detecta el aeropuerto mencionado:
-   - REU si menciona ""Reus""
-   - GRO si menciona ""Girona"" o ""Costa Brava""
-   - BCN si menciona ""Barcelona"" o ""El Prat""
-   - MAD si menciona ""Madrid"" o ""Barajas""
-   - AGP si menciona ""Málaga"" o ""Costa del Sol""
-   - VLC si menciona ""Valencia"" o ""Manises""
-   - PMI si menciona ""Palma"" o ""Mallorca"" o ""Son Sant Joan""
-   - Y así con otros aeropuertos españoles
-   - Si NO menciona ningún aeropuerto, usa ""MAD""
-
-3. RESUMEN (máximo 2 frases):
-   Resume QUÉ necesita o pregunta el cliente. NO copies la transcripción literal.
+INSTRUCCIONES:
+1. Identifica el aeropuerto mencionado (si no hay ninguno, usa MAD)
+2. Clasifica en la categoría MÁS ESPECÍFICA
+3. Resume en 1-2 frases QUÉ quiere el cliente (NO copies el texto literal)
 
 EJEMPLOS:
-- ""Hola, ¿dónde está el parking del aeropuerto de Reus?"" 
-  → {{""category"":""Parking"",""airportCode"":""REU"",""summary"":""Cliente consulta ubicación del parking""}}
+""Hola, ¿dónde está el parking de Reus?"" →
+{{""category"":""Parking"",""airportCode"":""REU"",""summary"":""Consulta ubicación del parking""}}
 
-- ""¿A qué hora sale el vuelo a Londres desde Barcelona?""
-  → {{""category"":""Vuelos"",""airportCode"":""BCN"",""summary"":""Consulta horario vuelo a Londres""}}
+""¿A qué hora sale el vuelo a Londres desde Barcelona?"" →
+{{""category"":""Vuelos"",""airportCode"":""BCN"",""summary"":""Solicita horario de vuelo a Londres""}}
 
-Responde SOLO con JSON (sin ```json, sin texto extra):
-{{
-  ""category"": ""nombre exacto de categoría"",
-  ""airportCode"": ""código de 3 letras"",
-  ""summary"": ""resumen breve""
-}}
+""¿Cuánto cuesta aparcar en el aeropuerto de Málaga?"" →
+{{""category"":""Parking"",""airportCode"":""AGP"",""summary"":""Pregunta tarifas de aparcamiento""}}
 
-TRANSCRIPCIÓN:
+Responde ÚNICAMENTE con JSON válido (sin ```json, sin comentarios):
+
+TRANSCRIPCIÓN A ANALIZAR:
 {transcript}";
 
         var messages = new List<ChatMessage>
@@ -72,44 +65,75 @@ TRANSCRIPCIÓN:
 
         var chatOptions = new ChatCompletionOptions
         {
-            Temperature = 0.3f, // Más determinístico
-            MaxOutputTokenCount = 300
+            Temperature = 0.2f, // Muy determinístico para reducir variación
+            MaxOutputTokenCount = 250,
+            TopP = 0.95f
         };
 
+        Console.WriteLine($"🔄 Calling OpenAI GPT ({_model})...");
+        var startTime = DateTime.UtcNow;
+        
         var response = await _client.CompleteChatAsync(messages, chatOptions);
+        var elapsed = (DateTime.UtcNow - startTime).TotalSeconds;
+        
         var jsonText = response.Value.Content[0].Text.Trim();
         
-        // Limpiar markdown si viene con ```json
-        if (jsonText.StartsWith("```"))
+        Console.WriteLine($"⏱️  GPT response time: {elapsed:F2}s");
+        Console.WriteLine($"📊 Response length: {jsonText.Length} characters");
+        
+        // Limpiar markdown si viene con ```json o ```
+        if (jsonText.Contains("```"))
         {
-            var lines = jsonText.Split('\n');
-            jsonText = string.Join('\n', lines.Skip(1).Take(lines.Length - 2));
+            Console.WriteLine("🧹 Cleaning markdown from response...");
+            // Eliminar ```json o ``` del inicio y final
+            jsonText = System.Text.RegularExpressions.Regex.Replace(jsonText, @"```(json)?\s*", "");
+            jsonText = jsonText.Trim();
         }
 
-        Console.WriteLine($"=== AI RAW RESPONSE ===");
+        Console.WriteLine("");
+        Console.WriteLine("=== AI RAW RESPONSE (cleaned) ===");
         Console.WriteLine(jsonText);
-        Console.WriteLine($"======================");
+        Console.WriteLine("=".PadRight(60, '='));
+        Console.WriteLine("");
         
         CallSummaryResponse? result;
         try
         {
-            result = System.Text.Json.JsonSerializer.Deserialize<CallSummaryResponse>(jsonText);
+            var options = new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,  // Ignorar mayúsculas/minúsculas
+                AllowTrailingCommas = true
+            };
+            
+            result = System.Text.Json.JsonSerializer.Deserialize<CallSummaryResponse>(jsonText, options);
+            
+            if (result == null)
+            {
+                Console.WriteLine($"❌ ERROR: Deserialization returned null");
+                throw new Exception("Deserialization returned null");
+            }
+            
             Console.WriteLine($"✅ JSON parsed successfully");
-            Console.WriteLine($"   Category from AI: '{result?.Category}'");
-            Console.WriteLine($"   AirportCode from AI: '{result?.AirportCode}'");
-            Console.WriteLine($"   Summary from AI: '{result?.Summary}'");
+            Console.WriteLine($"   📂 Category: '{result.Category}'");
+            Console.WriteLine($"   ✈️  Airport: '{result.AirportCode}'");
+            Console.WriteLine($"   📝 Summary: '{result.Summary}'");
         }
         catch (Exception ex)
         {
             Console.WriteLine($"❌ ERROR parsing AI response: {ex.Message}");
             Console.WriteLine($"   Problematic JSON: {jsonText}");
-            // Fallback si el JSON no es válido
+            Console.WriteLine($"   Full exception: {ex}");
+            
+            // Fallback robusto
             result = new CallSummaryResponse
             {
-                Category = "Error de Análisis",
+                Category = "Otros",
                 AirportCode = "MAD",
-                Summary = "No se pudo analizar correctamente"
+                Summary = transcript.Length > 100 
+                    ? $"{transcript.Substring(0, 97)}..." 
+                    : transcript
             };
+            Console.WriteLine($"🔧 Using fallback values");
         }
         
         // Validar y limpiar campos vacíos

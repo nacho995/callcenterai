@@ -23,16 +23,36 @@ function App() {
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      mediaRecorderRef.current = new MediaRecorder(stream)
+      // Solicitar audio de alta calidad
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 48000  // Alta calidad
+        } 
+      })
+      
+      // Configurar MediaRecorder con alta calidad
+      const options = { audioBitsPerSecond: 128000 } // 128 kbps
+      mediaRecorderRef.current = new MediaRecorder(stream, options)
       audioChunksRef.current = []
       setHasAudio(false)
+      
+      console.log('🎙️ MediaRecorder iniciado con:', mediaRecorderRef.current.mimeType)
 
       mediaRecorderRef.current.ondataavailable = (event) => {
-        if (event.data.size > 0) {
+        if (event.data && event.data.size > 0) {
           audioChunksRef.current.push(event.data)
           console.log('📦 Audio chunk received:', event.data.size, 'bytes')
+        } else {
+          console.warn('⚠️  Empty audio chunk received')
         }
+      }
+      
+      mediaRecorderRef.current.onerror = (event) => {
+        console.error('❌ MediaRecorder error:', event.error)
+        setError('Error al grabar audio: ' + event.error)
       }
 
       // Capturar chunks cada 100ms para no perder datos
@@ -40,6 +60,8 @@ function App() {
       setIsRecording(true)
       setError(null)
       setRecordingTime(0)
+      
+      console.log('✅ Recording started successfully')
 
       // Iniciar temporizador
       timerRef.current = setInterval(() => {
@@ -55,21 +77,42 @@ function App() {
     return new Promise((resolve) => {
       if (mediaRecorderRef.current && isRecording) {
         mediaRecorderRef.current.onstop = () => {
-          console.log('🛑 Recording stopped, chunks collected:', audioChunksRef.current.length)
+          const chunks = audioChunksRef.current.length
+          console.log('🛑 Recording stopped, chunks collected:', chunks)
+          
+          if (chunks === 0) {
+            console.error('❌ ERROR: No audio chunks were recorded!')
+            setError('No se grabó audio. Por favor, intenta de nuevo.')
+            resolve(null)
+            return
+          }
           
           // Usar el tipo MIME que el navegador realmente está grabando
           const mimeType = mediaRecorderRef.current.mimeType || 'audio/webm'
           const audioBlob = new Blob(audioChunksRef.current, { type: mimeType })
           
-          console.log('📊 Total audio blob size:', audioBlob.size, 'bytes')
+          const durationSeconds = recordingTime
+          console.log('📊 Total audio blob size:', audioBlob.size, 'bytes', `(${(audioBlob.size / 1024).toFixed(1)} KB)`)
+          console.log('⏱️ Recording duration:', durationSeconds, 'seconds')
+          
+          if (audioBlob.size < 10000) {
+            console.warn('⚠️  WARNING: Audio file is very small, might be too short')
+          }
+          
+          if (durationSeconds > 0) {
+            const bitrate = (audioBlob.size * 8 / durationSeconds / 1000).toFixed(0)
+            console.log('📈 Bitrate aproximado:', bitrate, 'kbps')
+          }
           
           // Determinar extensión basada en el tipo MIME
           const extension = mimeType.includes('webm') ? 'webm' : 
                            mimeType.includes('ogg') ? 'ogg' : 
-                           mimeType.includes('mp4') ? 'mp4' : 'webm'
+                           mimeType.includes('mp4') ? 'mp4' : 
+                           mimeType.includes('wav') ? 'wav' : 'webm'
           
           const audioFile = new File([audioBlob], `recording.${extension}`, { type: mimeType })
-          console.log('🎤 Audio file created:', audioFile.name, mimeType, audioFile.size, 'bytes')
+          console.log('✅ Audio file created:', audioFile.name, mimeType, audioFile.size, 'bytes')
+          
           setHasAudio(true)
           resolve(audioFile)
         }
@@ -104,6 +147,7 @@ function App() {
 
     let audioFile = null
     if (isRecording) {
+      console.log('⏹️  Stopping recording before submit...')
       audioFile = await stopRecording()
     } else {
       // Usar el tipo MIME que se grabó originalmente
@@ -113,7 +157,24 @@ function App() {
                        mimeType.includes('ogg') ? 'ogg' : 'webm'
       audioFile = new File([audioBlob], `recording.${extension}`, { type: mimeType })
     }
+    
+    // Validar que tenemos un archivo válido
+    if (!audioFile || audioFile.size === 0) {
+      console.error('❌ ERROR: No valid audio file to submit')
+      setError('No se pudo crear el archivo de audio. Por favor, graba de nuevo.')
+      return
+    }
+    
+    // Validar tamaño mínimo (10KB)
+    const minSize = 10 * 1024
+    if (audioFile.size < minSize) {
+      console.error(`❌ ERROR: Audio file too small (${audioFile.size} bytes, min: ${minSize})`)
+      setError('El audio es demasiado corto. Por favor, graba al menos 2-3 segundos.')
+      return
+    }
 
+    console.log('📤 Submitting audio to API:', audioFile.name, audioFile.size, 'bytes')
+    
     setLoading(true)
     setError(null)
     setResult(null)
@@ -123,17 +184,29 @@ function App() {
     formData.append('employeeId', employeeId)
 
     try {
+      console.log(`🌐 Sending POST to ${API_URL}/api/calls/audio`)
+      const startTime = Date.now()
+      
       const response = await fetch(`${API_URL}/api/calls/audio`, {
         method: 'POST',
         body: formData,
       })
+      
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(2)
+      console.log(`⏱️  API response time: ${elapsed}s`)
 
       if (!response.ok) {
-        throw new Error('Error al procesar el audio')
+        const errorText = await response.text()
+        console.error(`❌ API Error (${response.status}):`, errorText)
+        throw new Error(`Error ${response.status}: ${errorText || 'Error al procesar el audio'}`)
       }
 
       const data = await response.json()
-      console.log('📊 API Response:', data)
+      console.log('✅ API Response received:')
+      console.log('   📍 Airport:', data.airport?.name, `(${data.airport?.code})`)
+      console.log('   📂 Category:', data.category?.name)
+      console.log('   📝 Transcript length:', data.transcript?.length, 'chars')
+      console.log('   📄 Summary length:', data.summary?.length, 'chars')
       setResult(data)
       audioChunksRef.current = []
       setRecordingTime(0)
