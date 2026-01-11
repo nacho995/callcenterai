@@ -6,6 +6,7 @@
 
 using CallCenterAI.Api.Services;
 using CallCenterAI.Api.Data;
+using CallCenterAI.Api.Models;
 using CallCenterAI.Api.BackgroundJobs;
 using Microsoft.EntityFrameworkCore;
 
