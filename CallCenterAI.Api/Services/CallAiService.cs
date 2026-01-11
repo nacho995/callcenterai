@@ -16,27 +16,56 @@ public class CallAiService
 
     public async Task<CallSummaryResponse> AnalyzeAsync(string transcript)
     {
-        var prompt = $@"Analiza esta llamada y devuelve este JSON exacto:
+        var prompt = $@"Analiza esta transcripción de una llamada de call center y extrae la siguiente información en formato JSON:
 
+INSTRUCCIONES:
+1. Categoría: tipo de consulta (Información, Queja, Reserva, Equipaje, etc.)
+2. Código de aeropuerto IATA (MAD, BCN, AGP, etc.) - Si no se menciona, usa ""UNKNOWN""
+3. Resumen: breve descripción de qué trata la llamada
+
+AEROPUERTOS DISPONIBLES:
+- MAD (Madrid), BCN (Barcelona), AGP (Málaga), VLC (Valencia), SVQ (Sevilla)
+- ALC (Alicante), BIO (Bilbao), PMI (Palma), IBZ (Ibiza), MAH (Menorca)
+- LPA (Gran Canaria), TFS (Tenerife Sur), TFN (Tenerife Norte), ACE (Lanzarote)
+- Y más aeropuertos españoles...
+
+Devuelve ÚNICAMENTE este JSON (sin markdown, sin explicaciones):
 {{
-  ""category"": ""<categoría de la llamada>"",
-  ""airportCode"": ""<código IATA del aeropuerto: MAD, BCN, AGP, etc>"",
-  ""summary"": ""<resumen breve de la llamada>""
+  ""category"": ""<categoría>"",
+  ""airportCode"": ""<código IATA o UNKNOWN>"",
+  ""summary"": ""<resumen>""
 }}
 
-Llamada:
+TRANSCRIPCIÓN:
 """"""{transcript}""""""
 ";
 
         var messages = new List<ChatMessage>
         {
-            ChatMessage.CreateSystemMessage("Eres un asistente de call center inteligente. Responde SOLO en JSON."),
+            ChatMessage.CreateSystemMessage("Eres un asistente de call center experto. Analiza llamadas y extrae información estructurada. Responde SOLO con JSON válido, sin formato markdown."),
             ChatMessage.CreateUserMessage(prompt)
         };
 
         var response = await _client.CompleteChatAsync(messages);
-        var json = response.Value.Content[0].Text;
+        var jsonText = response.Value.Content[0].Text.Trim();
+        
+        // Limpiar markdown si viene con ```json
+        if (jsonText.StartsWith("```"))
+        {
+            var lines = jsonText.Split('\n');
+            jsonText = string.Join('\n', lines.Skip(1).Take(lines.Length - 2));
+        }
 
-        return System.Text.Json.JsonSerializer.Deserialize<CallSummaryResponse>(json!)!;
+        Console.WriteLine($"AI Response: {jsonText}");
+        var result = System.Text.Json.JsonSerializer.Deserialize<CallSummaryResponse>(jsonText)!;
+        
+        // Si no se detectó aeropuerto, usar MAD por defecto
+        if (string.IsNullOrEmpty(result.AirportCode) || result.AirportCode == "UNKNOWN")
+        {
+            Console.WriteLine("No airport detected, using MAD as default");
+            result.AirportCode = "MAD";
+        }
+        
+        return result;
     }
 }
