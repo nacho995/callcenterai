@@ -16,28 +16,53 @@ public class CallAiService
 
     public async Task<CallSummaryResponse> AnalyzeAsync(string transcript)
     {
-        var prompt = $@"Analiza esta transcripción de una llamada y extrae información en formato JSON:
+        var prompt = $@"Eres un asistente de IA que analiza llamadas de call center de aeropuertos.
 
-INSTRUCCIONES:
-1. Categoría: clasifica el tema de la conversación (Información, Consulta, Queja, Saludo, Charla, Otros, etc.)
-2. Aeropuerto: si se menciona un aeropuerto español, devuelve su código IATA (MAD, BCN, AGP, etc.)
-   - Si NO se menciona ningún aeropuerto, usa ""MAD"" por defecto
-3. Resumen: descripción breve de qué trata la conversación
+TAREA: Analiza la transcripción y extrae:
 
-CÓDIGOS DE AEROPUERTOS (solo si se mencionan):
-MAD=Madrid, BCN=Barcelona, AGP=Málaga, VLC=Valencia, SVQ=Sevilla, ALC=Alicante, 
-BIO=Bilbao, PMI=Palma, IBZ=Ibiza, LPA=Gran Canaria, TFS=Tenerife
+1. CATEGORÍA (elige UNA que mejor describa el tema principal):
+   - Parking (si pregunta por aparcamiento, parking, estacionamiento)
+   - Vuelos (si pregunta por horarios, salidas, llegadas, retrasos de vuelos)
+   - Facturación (si pregunta por check-in, documentación, equipaje facturado)
+   - Equipaje (si pregunta por maletas, equipaje perdido, recogida)
+   - Seguridad (si pregunta por controles, prohibiciones, normativas)
+   - Transporte (si pregunta por buses, taxis, metro, cómo llegar)
+   - Información General (si pregunta datos del aeropuerto, servicios, tiendas)
+   - Reservas (si quiere reservar algo, hacer cita)
+   - Queja (si reporta un problema, reclama algo)
+   - Otros (SOLO si no encaja en ninguna categoría anterior)
 
-Responde ÚNICAMENTE con JSON (sin ```json, sin explicaciones):
+2. AEROPUERTO (código IATA de 3 letras):
+   Detecta el aeropuerto mencionado:
+   - REU si menciona ""Reus""
+   - GRO si menciona ""Girona"" o ""Costa Brava""
+   - BCN si menciona ""Barcelona"" o ""El Prat""
+   - MAD si menciona ""Madrid"" o ""Barajas""
+   - AGP si menciona ""Málaga"" o ""Costa del Sol""
+   - VLC si menciona ""Valencia"" o ""Manises""
+   - PMI si menciona ""Palma"" o ""Mallorca"" o ""Son Sant Joan""
+   - Y así con otros aeropuertos españoles
+   - Si NO menciona ningún aeropuerto, usa ""MAD""
+
+3. RESUMEN (máximo 2 frases):
+   Resume QUÉ necesita o pregunta el cliente. NO copies la transcripción literal.
+
+EJEMPLOS:
+- ""Hola, ¿dónde está el parking del aeropuerto de Reus?"" 
+  → {{""category"":""Parking"",""airportCode"":""REU"",""summary"":""Cliente consulta ubicación del parking""}}
+
+- ""¿A qué hora sale el vuelo a Londres desde Barcelona?""
+  → {{""category"":""Vuelos"",""airportCode"":""BCN"",""summary"":""Consulta horario vuelo a Londres""}}
+
+Responde SOLO con JSON (sin ```json, sin texto extra):
 {{
-  ""category"": ""<categoría>"",
-  ""airportCode"": ""<código o MAD>"",
-  ""summary"": ""<resumen>""
+  ""category"": ""nombre exacto de categoría"",
+  ""airportCode"": ""código de 3 letras"",
+  ""summary"": ""resumen breve""
 }}
 
 TRANSCRIPCIÓN:
-""""""{transcript}""""""
-";
+{transcript}";
 
         var messages = new List<ChatMessage>
         {
