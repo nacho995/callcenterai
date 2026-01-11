@@ -33,7 +33,8 @@ Console.WriteLine($"DATABASE_URL found: {!string.IsNullOrEmpty(connectionString)
 if (!string.IsNullOrEmpty(connectionString))
 {
     Console.WriteLine($"Connection string length: {connectionString.Length}");
-    Console.WriteLine($"Connection string starts with: {connectionString.Substring(0, Math.Min(30, connectionString.Length))}...");
+    // Imprimir TODA la connection string para debug
+    Console.WriteLine($"FULL Connection string: {connectionString}");
 }
 
 if (string.IsNullOrEmpty(connectionString))
