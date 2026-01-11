@@ -54,16 +54,36 @@ public class CallsController : ControllerBase
                 return BadRequest("Audio file is required");
             }
             
-            Console.WriteLine($"Audio file size: {audio.Length} bytes");
+            Console.WriteLine($"Audio file: {audio.FileName}, size: {audio.Length} bytes, type: {audio.ContentType}");
             
-            var audioPath = Path.GetTempFileName();
+            // Obtener extensión del archivo original
+            var extension = Path.GetExtension(audio.FileName);
+            if (string.IsNullOrEmpty(extension))
+            {
+                extension = ".webm"; // Por defecto
+            }
+            
+            var audioPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}{extension}");
+            Console.WriteLine($"Saving audio to: {audioPath}");
 
             using (var stream = System.IO.File.Create(audioPath))
                 await audio.CopyToAsync(stream);
 
-            Console.WriteLine("Starting transcription...");
-            var transcript = await _speechService.TranscribeAsync(audioPath);
-            Console.WriteLine($"Transcription complete: {transcript.Substring(0, Math.Min(50, transcript.Length))}...");
+            string transcript;
+            try
+            {
+                Console.WriteLine("Starting transcription...");
+                transcript = await _speechService.TranscribeAsync(audioPath);
+                Console.WriteLine($"Transcription complete: {transcript.Substring(0, Math.Min(50, transcript.Length))}...");
+            }
+            finally
+            {
+                // Limpiar archivo temporal
+                if (System.IO.File.Exists(audioPath))
+                {
+                    System.IO.File.Delete(audioPath);
+                }
+            }
 
             Console.WriteLine("Starting AI analysis...");
             var analysis = await _callAiService.AnalyzeAsync(transcript);
