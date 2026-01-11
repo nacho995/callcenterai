@@ -27,18 +27,24 @@ builder.Services.AddScoped<CallAiService>();
 builder.Services.AddScoped<SpeechToTextService>();
 
 // Render usa DATABASE_URL por defecto
-var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL") 
-    ?? builder.Configuration.GetConnectionString("DefaultConnection");
+var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
+
+Console.WriteLine($"DATABASE_URL found: {!string.IsNullOrEmpty(connectionString)}");
+if (!string.IsNullOrEmpty(connectionString))
+{
+    Console.WriteLine($"Connection string length: {connectionString.Length}");
+    Console.WriteLine($"Connection string starts with: {connectionString.Substring(0, Math.Min(30, connectionString.Length))}...");
+}
 
 if (string.IsNullOrEmpty(connectionString))
 {
-    Console.WriteLine("No database connection string found, using SQLite");
+    Console.WriteLine("ERROR: DATABASE_URL not found! Using SQLite fallback");
     builder.Services.AddDbContext<AppDbContext>(opt =>
-        opt.UseSqlite("Data Source=callcenter.db"));
+        opt.UseSqlite("Data Source=/tmp/callcenter.db"));
 }
 else
 {
-    Console.WriteLine($"Using PostgreSQL connection");
+    Console.WriteLine("Using PostgreSQL from DATABASE_URL");
     builder.Services.AddDbContext<AppDbContext>(opt =>
         opt.UseNpgsql(connectionString));
 }
