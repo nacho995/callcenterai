@@ -102,8 +102,41 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+// CORS debe ir ANTES de UseHttpsRedirection
 app.UseCors();
 app.UseHttpsRedirection();
+
+// Health check endpoint
+app.MapGet("/health", () => "OK");
+
+// Seed endpoint para poblar aeropuertos
+app.MapPost("/api/seed", async (AppDbContext db) =>
+{
+    if (await db.Airports.AnyAsync())
+    {
+        return Results.Ok(new { message = "Database already seeded" });
+    }
+
+    var airports = new List<Airport>
+    {
+        new() { Code = "MAD", Name = "Madrid-Barajas Adolfo Suárez" },
+        new() { Code = "BCN", Name = "Barcelona-El Prat Josep Tarradellas" },
+        new() { Code = "AGP", Name = "Málaga-Costa del Sol" },
+        new() { Code = "PMI", Name = "Palma de Mallorca" },
+        new() { Code = "VLC", Name = "Valencia" },
+        new() { Code = "SVQ", Name = "Sevilla" },
+        new() { Code = "ALC", Name = "Alicante-Elche" },
+        new() { Code = "BIO", Name = "Bilbao" },
+        new() { Code = "LPA", Name = "Gran Canaria" },
+        new() { Code = "TFS", Name = "Tenerife Sur" }
+    };
+
+    await db.Airports.AddRangeAsync(airports);
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new { message = "Database seeded successfully", count = airports.Count });
+});
+
 app.MapControllers();
 
 // Usar el puerto de la variable de entorno PORT (Render usa 10000)
