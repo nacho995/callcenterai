@@ -51,8 +51,17 @@ function App() {
     return new Promise((resolve) => {
       if (mediaRecorderRef.current && isRecording) {
         mediaRecorderRef.current.onstop = () => {
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' })
-          const audioFile = new File([audioBlob], 'recording.wav', { type: 'audio/wav' })
+          // Usar el tipo MIME que el navegador realmente está grabando
+          const mimeType = mediaRecorderRef.current.mimeType || 'audio/webm'
+          const audioBlob = new Blob(audioChunksRef.current, { type: mimeType })
+          
+          // Determinar extensión basada en el tipo MIME
+          const extension = mimeType.includes('webm') ? 'webm' : 
+                           mimeType.includes('ogg') ? 'ogg' : 
+                           mimeType.includes('mp4') ? 'mp4' : 'webm'
+          
+          const audioFile = new File([audioBlob], `recording.${extension}`, { type: mimeType })
+          console.log('🎤 Audio grabado:', audioFile.name, mimeType, audioFile.size, 'bytes')
           setHasAudio(true)
           resolve(audioFile)
         }
@@ -87,8 +96,12 @@ function App() {
     if (isRecording) {
       audioFile = await stopRecording()
     } else {
-      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' })
-      audioFile = new File([audioBlob], 'recording.wav', { type: 'audio/wav' })
+      // Usar el tipo MIME que se grabó originalmente
+      const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm'
+      const audioBlob = new Blob(audioChunksRef.current, { type: mimeType })
+      const extension = mimeType.includes('webm') ? 'webm' : 
+                       mimeType.includes('ogg') ? 'ogg' : 'webm'
+      audioFile = new File([audioBlob], `recording.${extension}`, { type: mimeType })
     }
 
     setLoading(true)
