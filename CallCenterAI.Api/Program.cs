@@ -116,29 +116,112 @@ app.MapGet("/health", () => "OK");
 // Seed endpoint para poblar aeropuertos (GET para acceder desde navegador)
 app.MapGet("/api/seed", async (AppDbContext db) =>
 {
-    if (await db.Airports.AnyAsync())
+    try
     {
-        return Results.Ok(new { message = "Database already seeded" });
+        if (await db.Airports.AnyAsync())
+        {
+            return Results.Ok(new { message = "Database already seeded", count = await db.Airports.CountAsync() });
+        }
+
+        // Primero, arreglar las secuencias de PostgreSQL para auto-incremento
+        await db.Database.ExecuteSqlRawAsync(@"
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_sequences WHERE schemaname = 'public' AND sequencename = 'Airports_Id_seq') THEN
+                    CREATE SEQUENCE ""Airports_Id_seq"";
+                    ALTER TABLE ""Airports"" ALTER COLUMN ""Id"" SET DEFAULT nextval('""Airports_Id_seq""');
+                    ALTER SEQUENCE ""Airports_Id_seq"" OWNED BY ""Airports"".""Id"";
+                END IF;
+                
+                IF NOT EXISTS (SELECT 1 FROM pg_sequences WHERE schemaname = 'public' AND sequencename = 'Categories_Id_seq') THEN
+                    CREATE SEQUENCE ""Categories_Id_seq"";
+                    ALTER TABLE ""Categories"" ALTER COLUMN ""Id"" SET DEFAULT nextval('""Categories_Id_seq""');
+                    ALTER SEQUENCE ""Categories_Id_seq"" OWNED BY ""Categories"".""Id"";
+                END IF;
+                
+                IF NOT EXISTS (SELECT 1 FROM pg_sequences WHERE schemaname = 'public' AND sequencename = 'Calls_Id_seq') THEN
+                    CREATE SEQUENCE ""Calls_Id_seq"";
+                    ALTER TABLE ""Calls"" ALTER COLUMN ""Id"" SET DEFAULT nextval('""Calls_Id_seq""');
+                    ALTER SEQUENCE ""Calls_Id_seq"" OWNED BY ""Calls"".""Id"";
+                END IF;
+                
+                IF NOT EXISTS (SELECT 1 FROM pg_sequences WHERE schemaname = 'public' AND sequencename = 'DailySummaries_Id_seq') THEN
+                    CREATE SEQUENCE ""DailySummaries_Id_seq"";
+                    ALTER TABLE ""DailySummaries"" ALTER COLUMN ""Id"" SET DEFAULT nextval('""DailySummaries_Id_seq""');
+                    ALTER SEQUENCE ""DailySummaries_Id_seq"" OWNED BY ""DailySummaries"".""Id"";
+                END IF;
+            END $$;
+        ");
+
+        // Todos los aeropuertos comerciales de España
+        var airports = new[]
+        {
+            // Península - Principales
+            ("MAD", "Madrid-Barajas Adolfo Suárez"),
+            ("BCN", "Barcelona-El Prat Josep Tarradellas"),
+            ("AGP", "Málaga-Costa del Sol"),
+            ("VLC", "Valencia"),
+            ("SVQ", "Sevilla"),
+            ("ALC", "Alicante-Elche"),
+            ("BIO", "Bilbao"),
+            
+            // Península - Secundarios
+            ("LEI", "Almería"),
+            ("OVD", "Asturias"),
+            ("GRX", "Granada-Federico García Lorca"),
+            ("SDR", "Santander"),
+            ("SCQ", "Santiago de Compostela"),
+            ("VGO", "Vigo-Peinador"),
+            ("VLL", "Valladolid"),
+            ("ZAZ", "Zaragoza"),
+            ("RGS", "Burgos"),
+            ("BJZ", "Badajoz"),
+            ("LCG", "A Coruña"),
+            ("SLM", "Salamanca"),
+            ("VIT", "Vitoria"),
+            ("PNA", "Pamplona"),
+            ("RJL", "Logroño-Agoncillo"),
+            ("HSK", "Huesca-Pirineos"),
+            ("RMU", "Región de Murcia"),
+            ("XRY", "Jerez de la Frontera"),
+            ("LEN", "León"),
+            ("REU", "Reus"),
+            ("GRO", "Girona-Costa Brava"),
+            
+            // Baleares
+            ("PMI", "Palma de Mallorca"),
+            ("IBZ", "Ibiza"),
+            ("MAH", "Menorca"),
+            
+            // Canarias
+            ("LPA", "Gran Canaria"),
+            ("TFS", "Tenerife Sur"),
+            ("TFN", "Tenerife Norte"),
+            ("ACE", "Lanzarote"),
+            ("FUE", "Fuerteventura"),
+            ("GMZ", "La Gomera"),
+            ("VDE", "El Hierro"),
+            ("SPC", "La Palma"),
+            
+            // Ceuta y Melilla
+            ("JCU", "Ceuta Heliport"),
+            ("MLN", "Melilla")
+        };
+
+        foreach (var (code, name) in airports)
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                "INSERT INTO \"Airports\" (\"Code\", \"Name\") VALUES ({0}, {1})",
+                code, name);
+        }
+
+        var count = await db.Airports.CountAsync();
+        return Results.Ok(new { message = "Database seeded successfully", count });
     }
-
-    var airports = new List<Airport>
+    catch (Exception ex)
     {
-        new() { Code = "MAD", Name = "Madrid-Barajas Adolfo Suárez" },
-        new() { Code = "BCN", Name = "Barcelona-El Prat Josep Tarradellas" },
-        new() { Code = "AGP", Name = "Málaga-Costa del Sol" },
-        new() { Code = "PMI", Name = "Palma de Mallorca" },
-        new() { Code = "VLC", Name = "Valencia" },
-        new() { Code = "SVQ", Name = "Sevilla" },
-        new() { Code = "ALC", Name = "Alicante-Elche" },
-        new() { Code = "BIO", Name = "Bilbao" },
-        new() { Code = "LPA", Name = "Gran Canaria" },
-        new() { Code = "TFS", Name = "Tenerife Sur" }
-    };
-
-    await db.Airports.AddRangeAsync(airports);
-    await db.SaveChangesAsync();
-
-    return Results.Ok(new { message = "Database seeded successfully", count = airports.Count });
+        return Results.Problem($"Error seeding database: {ex.Message}");
+    }
 });
 
 app.MapControllers();
