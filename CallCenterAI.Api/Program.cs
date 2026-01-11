@@ -26,18 +26,10 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped<CallAiService>();
 builder.Services.AddScoped<SpeechToTextService>();
 
-// Render usa DATABASE_URL por defecto
-var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
+// Render usa DATABASE_URL en formato URI, necesita conversión para Npgsql
+var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
 
-Console.WriteLine($"DATABASE_URL found: {!string.IsNullOrEmpty(connectionString)}");
-if (!string.IsNullOrEmpty(connectionString))
-{
-    Console.WriteLine($"Connection string length: {connectionString.Length}");
-    // Imprimir TODA la connection string para debug
-    Console.WriteLine($"FULL Connection string: {connectionString}");
-}
-
-if (string.IsNullOrEmpty(connectionString))
+if (string.IsNullOrEmpty(databaseUrl))
 {
     Console.WriteLine("ERROR: DATABASE_URL not found! Using SQLite fallback");
     builder.Services.AddDbContext<AppDbContext>(opt =>
@@ -45,9 +37,33 @@ if (string.IsNullOrEmpty(connectionString))
 }
 else
 {
-    Console.WriteLine("Using PostgreSQL from DATABASE_URL");
-    builder.Services.AddDbContext<AppDbContext>(opt =>
-        opt.UseNpgsql(connectionString));
+    Console.WriteLine($"DATABASE_URL found, length: {databaseUrl.Length}");
+    
+    // Convertir de formato URI a formato Npgsql
+    try
+    {
+        var databaseUri = new Uri(databaseUrl);
+        var userInfo = databaseUri.UserInfo.Split(':');
+        
+        var connectionString = $"Host={databaseUri.Host};" +
+                             $"Port={databaseUri.Port};" +
+                             $"Username={userInfo[0]};" +
+                             $"Password={userInfo[1]};" +
+                             $"Database={databaseUri.LocalPath.TrimStart('/')};" +
+                             $"SSL Mode=Require;" +
+                             $"Trust Server Certificate=true";
+        
+        Console.WriteLine("Converted to Npgsql format successfully");
+        builder.Services.AddDbContext<AppDbContext>(opt =>
+            opt.UseNpgsql(connectionString));
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"ERROR converting DATABASE_URL: {ex.Message}");
+        Console.WriteLine("Falling back to SQLite");
+        builder.Services.AddDbContext<AppDbContext>(opt =>
+            opt.UseSqlite("Data Source=/tmp/callcenter.db"));
+    }
 }
 
 builder.Services.AddHostedService<DailySummaryJob>();
