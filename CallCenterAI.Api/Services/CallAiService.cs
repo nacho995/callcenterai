@@ -41,11 +41,17 @@ TRANSCRIPCIÓN:
 
         var messages = new List<ChatMessage>
         {
-            ChatMessage.CreateSystemMessage("Eres un asistente de call center experto. Analiza llamadas y extrae información estructurada. Responde SOLO con JSON válido, sin formato markdown."),
+            ChatMessage.CreateSystemMessage("Eres un experto en análisis de llamadas. Extrae información clave y genera resúmenes concisos. Responde ÚNICAMENTE con JSON sin formato markdown ni explicaciones adicionales."),
             ChatMessage.CreateUserMessage(prompt)
         };
 
-        var response = await _client.CompleteChatAsync(messages);
+        var chatOptions = new ChatCompletionOptions
+        {
+            Temperature = 0.3f, // Más determinístico
+            MaxOutputTokenCount = 300
+        };
+
+        var response = await _client.CompleteChatAsync(messages, chatOptions);
         var jsonText = response.Value.Content[0].Text.Trim();
         
         // Limpiar markdown si viene con ```json
@@ -55,45 +61,65 @@ TRANSCRIPCIÓN:
             jsonText = string.Join('\n', lines.Skip(1).Take(lines.Length - 2));
         }
 
-        Console.WriteLine($"AI Response: {jsonText}");
+        Console.WriteLine($"=== AI RAW RESPONSE ===");
+        Console.WriteLine(jsonText);
+        Console.WriteLine($"======================");
         
         CallSummaryResponse? result;
         try
         {
             result = System.Text.Json.JsonSerializer.Deserialize<CallSummaryResponse>(jsonText);
+            Console.WriteLine($"✅ JSON parsed successfully");
+            Console.WriteLine($"   Category from AI: '{result?.Category}'");
+            Console.WriteLine($"   AirportCode from AI: '{result?.AirportCode}'");
+            Console.WriteLine($"   Summary from AI: '{result?.Summary}'");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"ERROR parsing AI response: {ex.Message}");
+            Console.WriteLine($"❌ ERROR parsing AI response: {ex.Message}");
+            Console.WriteLine($"   Problematic JSON: {jsonText}");
             // Fallback si el JSON no es válido
             result = new CallSummaryResponse
             {
-                Category = "Conversación General",
+                Category = "Error de Análisis",
                 AirportCode = "MAD",
-                Summary = transcript.Length > 100 ? transcript.Substring(0, 100) : transcript
+                Summary = "No se pudo analizar correctamente"
             };
         }
         
         // Validar y limpiar campos vacíos
         if (string.IsNullOrWhiteSpace(result.AirportCode) || result.AirportCode == "UNKNOWN")
         {
-            Console.WriteLine("No airport detected, using MAD as default");
+            Console.WriteLine("⚠️  No airport detected by AI, using MAD as default");
             result.AirportCode = "MAD";
+        }
+        else
+        {
+            Console.WriteLine($"✅ Airport detected by AI: {result.AirportCode}");
         }
         
         if (string.IsNullOrWhiteSpace(result.Category))
         {
-            Console.WriteLine("No category detected, using default");
+            Console.WriteLine("⚠️  No category detected by AI, using default");
             result.Category = "Conversación General";
+        }
+        else
+        {
+            Console.WriteLine($"✅ Category detected by AI: {result.Category}");
         }
         
         if (string.IsNullOrWhiteSpace(result.Summary))
         {
-            Console.WriteLine("No summary detected, using transcript");
-            result.Summary = transcript.Length > 200 ? transcript.Substring(0, 200) + "..." : transcript;
+            Console.WriteLine("⚠️  No summary detected by AI, generating from transcript");
+            result.Summary = $"Llamada sobre: {transcript.Substring(0, Math.Min(100, transcript.Length))}";
+        }
+        else
+        {
+            Console.WriteLine($"✅ Summary detected by AI: {result.Summary.Substring(0, Math.Min(50, result.Summary.Length))}...");
         }
         
-        Console.WriteLine($"Final analysis - Airport: {result.AirportCode}, Category: {result.Category}");
+        Console.WriteLine($"=== FINAL RESULT ===");
+        Console.WriteLine($"Airport: {result.AirportCode}, Category: {result.Category}, Summary length: {result.Summary.Length}");
         return result;
     }
 }
