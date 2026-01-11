@@ -13,13 +13,16 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
 builder.Services.AddControllers();
+
+// Configurar CORS de forma más explícita para producción
 builder.Services.AddCors(options =>
 {
-    options.AddDefaultPolicy(policy =>
+    options.AddPolicy("AllowAll", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.SetIsOriginAllowed(_ => true)  // Permite cualquier origen
               .AllowAnyMethod()
-              .AllowAnyHeader();
+              .AllowAnyHeader()
+              .AllowCredentials();
     });
 });
 
@@ -97,13 +100,13 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+// CORS debe ser lo primero
+app.UseCors("AllowAll");
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
-
-// CORS debe ir ANTES de UseHttpsRedirection
-app.UseCors();
 app.UseHttpsRedirection();
 
 // Health check endpoint
