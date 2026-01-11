@@ -106,4 +106,8 @@ app.UseCors();
 app.UseHttpsRedirection();
 app.MapControllers();
 
+// Usar el puerto de la variable de entorno PORT (Render usa 10000)
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+app.Urls.Add($"http://0.0.0.0:{port}");
+
 app.Run();
