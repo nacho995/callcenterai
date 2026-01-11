@@ -1,0 +1,63 @@
+services:
+  # PostgreSQL Database
+  - type: pserv
+    name: callcenterai-db
+    env: docker
+    plan: free
+    databases:
+      - name: callcenterai
+        databaseName: callcenterai
+        user: callcenterai
+
+  # API Backend (.NET)
+  - type: web
+    name: callcenterai-api
+    env: docker
+    dockerfilePath: ./CallCenterAI.Api/Dockerfile
+    dockerContext: ./CallCenterAI.Api
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: PORT
+        value: 8080
+      - key: ConnectionStrings__DefaultConnection
+        fromDatabase:
+          name: callcenterai-db
+          property: connectionString
+      - key: OpenAI__ApiKey
+        sync: false  # Debes agregarlo manualmente
+      - key: OpenAI__Model
+        value: gpt-4o-mini
+      - key: SpeechService__BaseUrl
+        fromService:
+          type: web
+          name: callcenterai-speech
+          property: host
+
+  # Speech Service (Python/Whisper)
+  - type: web
+    name: callcenterai-speech
+    env: docker
+    dockerfilePath: ./CallCenterAi.speech/Dockerfile
+    dockerContext: ./CallCenterAi.speech
+    plan: starter  # Necesita más recursos (mínimo $7/mes)
+    healthCheckPath: /docs
+    envVars:
+      - key: PORT
+        value: 8080
+
+  # Frontend (React)
+  - type: web
+    name: callcenterai-frontend
+    env: docker
+    dockerfilePath: ./callcenterai-frontend/Dockerfile
+    dockerContext: ./callcenterai-frontend
+    plan: free
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: callcenterai-api
+          property: host

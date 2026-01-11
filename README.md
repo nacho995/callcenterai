@@ -64,7 +64,7 @@ Sistema inteligente de análisis de llamadas con transcripción automática y cl
 
 **1. Clonar el repositorio**
 ```bash
-git clone https://github.com/TU_USUARIO/callcenterai.git
+git clone https://github.com/nacho995/callcenterai.git
 cd callcenterai
 ```
 
@@ -112,15 +112,18 @@ Crea `CallCenterAI.Api/appsettings.json`:
 
 ## 📦 Deploy en Producción
 
-Ver guía completa en [DEPLOY.md](./DEPLOY.md)
+### Opción 1: Render (Recomendado - Más fácil)
+Ver guía completa en [DEPLOY-RENDER.md](./DEPLOY-RENDER.md)
 
-**Resumen rápido:**
-1. Crear proyecto en Railway.app
-2. Conectar repositorio GitHub
-3. Crear 3 servicios (API, Speech, Frontend)
-4. Agregar PostgreSQL
-5. Configurar variables de entorno
-6. Deploy automático
+**Deploy en 5 minutos:**
+1. Push a GitHub
+2. Render → New Blueprint
+3. Conectar repo
+4. Agregar OpenAI API Key
+5. ¡Listo!
+
+### Opción 2: Railway
+Ver guía completa en [DEPLOY.md](./DEPLOY.md)
 
 ## 📁 Estructura del Proyecto
 
@@ -152,7 +155,7 @@ callcenterai/
 ### API (.NET)
 ```bash
 ConnectionStrings__DefaultConnection=postgresql://...
-OpenAI__ApiKey=sk-proj-...
+
 OpenAI__Model=gpt-4o-mini
 SpeechService__BaseUrl=http://localhost:8000
 ASPNETCORE_ENVIRONMENT=Development
@@ -209,10 +212,10 @@ Este es un software propietario. Ver [LICENSE](./LICENSE) para más detalles.
 
 ## 👥 Autores
 
-- Tu Nombre - [@tu_usuario](https://github.com/tu_usuario)
+- Tu Nombre - [@nacho995](https://github.com/nacho995)
 
 ## 🙏 Agradecimientos
 
 - OpenAI por GPT y Whisper
-- Railway por hosting
+- Render por hosting
 - Comunidad .NET y React

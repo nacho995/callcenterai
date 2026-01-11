@@ -1,0 +1,20 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+COPY CallCenterAI.Api/CallCenterAI.Api.csproj CallCenterAI.Api/
+WORKDIR /src/CallCenterAI.Api
+RUN dotnet restore
+
+WORKDIR /src
+COPY CallCenterAI.Api/ CallCenterAI.Api/
+WORKDIR /src/CallCenterAI.Api
+RUN dotnet publish -c Release -o /app/publish
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+WORKDIR /app
+COPY --from=build /app/publish .
+
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+
+ENTRYPOINT ["dotnet", "CallCenterAI.Api.dll"]
