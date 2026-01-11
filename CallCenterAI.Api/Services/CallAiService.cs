@@ -16,23 +16,22 @@ public class CallAiService
 
     public async Task<CallSummaryResponse> AnalyzeAsync(string transcript)
     {
-        var prompt = $@"Analiza esta transcripción de una llamada de call center y extrae la siguiente información en formato JSON:
+        var prompt = $@"Analiza esta transcripción de una llamada y extrae información en formato JSON:
 
 INSTRUCCIONES:
-1. Categoría: tipo de consulta (Información, Queja, Reserva, Equipaje, etc.)
-2. Código de aeropuerto IATA (MAD, BCN, AGP, etc.) - Si no se menciona, usa ""UNKNOWN""
-3. Resumen: breve descripción de qué trata la llamada
+1. Categoría: clasifica el tema de la conversación (Información, Consulta, Queja, Saludo, Charla, Otros, etc.)
+2. Aeropuerto: si se menciona un aeropuerto español, devuelve su código IATA (MAD, BCN, AGP, etc.)
+   - Si NO se menciona ningún aeropuerto, usa ""MAD"" por defecto
+3. Resumen: descripción breve de qué trata la conversación
 
-AEROPUERTOS DISPONIBLES:
-- MAD (Madrid), BCN (Barcelona), AGP (Málaga), VLC (Valencia), SVQ (Sevilla)
-- ALC (Alicante), BIO (Bilbao), PMI (Palma), IBZ (Ibiza), MAH (Menorca)
-- LPA (Gran Canaria), TFS (Tenerife Sur), TFN (Tenerife Norte), ACE (Lanzarote)
-- Y más aeropuertos españoles...
+CÓDIGOS DE AEROPUERTOS (solo si se mencionan):
+MAD=Madrid, BCN=Barcelona, AGP=Málaga, VLC=Valencia, SVQ=Sevilla, ALC=Alicante, 
+BIO=Bilbao, PMI=Palma, IBZ=Ibiza, LPA=Gran Canaria, TFS=Tenerife
 
-Devuelve ÚNICAMENTE este JSON (sin markdown, sin explicaciones):
+Responde ÚNICAMENTE con JSON (sin ```json, sin explicaciones):
 {{
   ""category"": ""<categoría>"",
-  ""airportCode"": ""<código IATA o UNKNOWN>"",
+  ""airportCode"": ""<código o MAD>"",
   ""summary"": ""<resumen>""
 }}
 

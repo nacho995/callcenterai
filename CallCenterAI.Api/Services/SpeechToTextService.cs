@@ -33,8 +33,8 @@ public class SpeechToTextService
             {
                 Language = "es",
                 ResponseFormat = AudioTranscriptionFormat.Text,
-                // Agregar contexto para mejorar precisión con términos aeroportuarios
-                Prompt = "Esta es una llamada de un call center de aeropuertos españoles. Incluye términos como: aeropuerto, Madrid, Barcelona, Valencia, vuelo, equipaje, reserva, información."
+                // Contexto general en español para mejor transcripción
+                Prompt = "Conversación en español de un call center. Puede incluir temas variados como aeropuertos, consultas generales o conversación casual."
             });
 
         return transcription.Value.Text;

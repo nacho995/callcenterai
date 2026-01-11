@@ -89,12 +89,19 @@ public class CallsController : ControllerBase
             var analysis = await _callAiService.AnalyzeAsync(transcript);
             Console.WriteLine($"Analysis complete - Airport: {analysis.AirportCode}, Category: {analysis.Category}");
 
-            // Buscar el aeropuerto por código
+            // Buscar el aeropuerto por código (si no existe, usar MAD por defecto)
             var airport = await _db.Airports.FirstOrDefaultAsync(a => a.Code == analysis.AirportCode);
             if (airport == null)
             {
-                Console.WriteLine($"ERROR: Airport not found: {analysis.AirportCode}");
-                return BadRequest($"Airport desconocido: {analysis.AirportCode}. Por favor, ejecuta /api/seed primero.");
+                Console.WriteLine($"WARNING: Airport {analysis.AirportCode} not found, using MAD as default");
+                airport = await _db.Airports.FirstOrDefaultAsync(a => a.Code == "MAD");
+                
+                // Si ni siquiera MAD existe, hay que ejecutar el seed
+                if (airport == null)
+                {
+                    Console.WriteLine("ERROR: No airports in database at all!");
+                    return BadRequest("Base de datos vacía. Ejecuta /api/seed primero.");
+                }
             }
 
             // Buscar o crear la categoría
