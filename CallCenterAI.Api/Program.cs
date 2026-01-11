@@ -71,7 +71,8 @@ else
     }
 }
 
-builder.Services.AddHostedService<DailySummaryJob>();
+// Deshabilitar temporalmente el DailySummaryJob hasta arreglar queries PostgreSQL
+// builder.Services.AddHostedService<DailySummaryJob>();
 
 
 var app = builder.Build();
@@ -84,8 +85,10 @@ using (var scope = app.Services.CreateScope())
     {
         await db.Database.MigrateAsync();
         Console.WriteLine("Database migrations applied successfully");
-        await CallCenterAI.Api.Data.DbSeeder.SeedAsync(db);
-        Console.WriteLine("Database seeded successfully");
+        
+        // Temporalmente deshabilitado el seeder - tiene problemas con PostgreSQL
+        // await CallCenterAI.Api.Data.DbSeeder.SeedAsync(db);
+        Console.WriteLine("Database seeding skipped");
     }
     catch (Exception ex)
     {
