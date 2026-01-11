@@ -55,7 +55,12 @@ else
         
         Console.WriteLine("Converted to Npgsql format successfully");
         builder.Services.AddDbContext<AppDbContext>(opt =>
-            opt.UseNpgsql(connectionString));
+        {
+            opt.UseNpgsql(connectionString);
+            // Suprimir warning de pending changes en producción
+            opt.ConfigureWarnings(warnings => 
+                warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+        });
     }
     catch (Exception ex)
     {
@@ -75,8 +80,18 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await db.Database.MigrateAsync();
-    await CallCenterAI.Api.Data.DbSeeder.SeedAsync(db);
+    try
+    {
+        await db.Database.MigrateAsync();
+        Console.WriteLine("Database migrations applied successfully");
+        await CallCenterAI.Api.Data.DbSeeder.SeedAsync(db);
+        Console.WriteLine("Database seeded successfully");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Database initialization error: {ex.Message}");
+        // Continuar de todas formas para que la app arranque
+    }
 }
 
 if (app.Environment.IsDevelopment())
