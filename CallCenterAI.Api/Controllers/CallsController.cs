@@ -87,7 +87,7 @@ public class CallsController : ControllerBase
 
             Console.WriteLine("Starting AI analysis...");
             var analysis = await _callAiService.AnalyzeAsync(transcript);
-            Console.WriteLine($"Analysis complete - Airport: {analysis.AirportCode}, Category: {analysis.Category}");
+            Console.WriteLine($"Analysis complete - Airport: {analysis.AirportCode}, Category: {analysis.Category}, Summary: {analysis.Summary?.Substring(0, Math.Min(50, analysis.Summary?.Length ?? 0))}...");
 
             // Buscar el aeropuerto por código (si no existe, usar MAD por defecto)
             var airport = await _db.Airports.FirstOrDefaultAsync(a => a.Code == analysis.AirportCode);

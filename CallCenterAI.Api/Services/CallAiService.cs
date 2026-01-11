@@ -56,15 +56,44 @@ TRANSCRIPCIÓN:
         }
 
         Console.WriteLine($"AI Response: {jsonText}");
-        var result = System.Text.Json.JsonSerializer.Deserialize<CallSummaryResponse>(jsonText)!;
         
-        // Si no se detectó aeropuerto, usar MAD por defecto
-        if (string.IsNullOrEmpty(result.AirportCode) || result.AirportCode == "UNKNOWN")
+        CallSummaryResponse? result;
+        try
+        {
+            result = System.Text.Json.JsonSerializer.Deserialize<CallSummaryResponse>(jsonText);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"ERROR parsing AI response: {ex.Message}");
+            // Fallback si el JSON no es válido
+            result = new CallSummaryResponse
+            {
+                Category = "Conversación General",
+                AirportCode = "MAD",
+                Summary = transcript.Length > 100 ? transcript.Substring(0, 100) : transcript
+            };
+        }
+        
+        // Validar y limpiar campos vacíos
+        if (string.IsNullOrWhiteSpace(result.AirportCode) || result.AirportCode == "UNKNOWN")
         {
             Console.WriteLine("No airport detected, using MAD as default");
             result.AirportCode = "MAD";
         }
         
+        if (string.IsNullOrWhiteSpace(result.Category))
+        {
+            Console.WriteLine("No category detected, using default");
+            result.Category = "Conversación General";
+        }
+        
+        if (string.IsNullOrWhiteSpace(result.Summary))
+        {
+            Console.WriteLine("No summary detected, using transcript");
+            result.Summary = transcript.Length > 200 ? transcript.Substring(0, 200) + "..." : transcript;
+        }
+        
+        Console.WriteLine($"Final analysis - Airport: {result.AirportCode}, Category: {result.Category}");
         return result;
     }
 }

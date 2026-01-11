@@ -29,10 +29,14 @@ function App() {
       setHasAudio(false)
 
       mediaRecorderRef.current.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data)
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+          console.log('📦 Audio chunk received:', event.data.size, 'bytes')
+        }
       }
 
-      mediaRecorderRef.current.start()
+      // Capturar chunks cada 100ms para no perder datos
+      mediaRecorderRef.current.start(100)
       setIsRecording(true)
       setError(null)
       setRecordingTime(0)
@@ -51,9 +55,13 @@ function App() {
     return new Promise((resolve) => {
       if (mediaRecorderRef.current && isRecording) {
         mediaRecorderRef.current.onstop = () => {
+          console.log('🛑 Recording stopped, chunks collected:', audioChunksRef.current.length)
+          
           // Usar el tipo MIME que el navegador realmente está grabando
           const mimeType = mediaRecorderRef.current.mimeType || 'audio/webm'
           const audioBlob = new Blob(audioChunksRef.current, { type: mimeType })
+          
+          console.log('📊 Total audio blob size:', audioBlob.size, 'bytes')
           
           // Determinar extensión basada en el tipo MIME
           const extension = mimeType.includes('webm') ? 'webm' : 
@@ -61,11 +69,13 @@ function App() {
                            mimeType.includes('mp4') ? 'mp4' : 'webm'
           
           const audioFile = new File([audioBlob], `recording.${extension}`, { type: mimeType })
-          console.log('🎤 Audio grabado:', audioFile.name, mimeType, audioFile.size, 'bytes')
+          console.log('🎤 Audio file created:', audioFile.name, mimeType, audioFile.size, 'bytes')
           setHasAudio(true)
           resolve(audioFile)
         }
 
+        // Request final data before stopping
+        mediaRecorderRef.current.requestData()
         mediaRecorderRef.current.stop()
         mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop())
         setIsRecording(false)
@@ -123,6 +133,7 @@ function App() {
       }
 
       const data = await response.json()
+      console.log('📊 API Response:', data)
       setResult(data)
       audioChunksRef.current = []
       setRecordingTime(0)
@@ -236,7 +247,7 @@ function App() {
 
               <div className="result-item">
                 <span className="label">Categoría</span>
-                <span className="value">{result.category?.name || 'N/A'}</span>
+                <span className="value">{result.category?.name || result.category || 'Sin categoría'}</span>
               </div>
 
               <div className="result-item full-width">
@@ -246,7 +257,7 @@ function App() {
 
               <div className="result-item full-width">
                 <span className="label">Resumen</span>
-                <p className="summary">{result.summary}</p>
+                <p className="summary">{result.summary || 'Sin resumen disponible'}</p>
               </div>
 
               <div className="result-item">
